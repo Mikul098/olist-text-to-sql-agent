@@ -1,13 +1,24 @@
 """
 llm_client.py
 
-Central place to create the OpenRouter client. OpenRouter exposes an
-OpenAI-compatible API, so we just point the standard `openai` SDK at
-OpenRouter's base URL instead of OpenAI's.
+Purpose & Use:
+Centralized LLM client factory and model configuration for the Text-to-SQL system.
+Manages the OpenRouter API connection using the OpenAI Python SDK.
 
-Every LLM-calling node (generate_sql, synthesize_response, etc.) should
-import get_llm_client() and MODEL_NAME from here instead of building
-their own client -- keeps the model swappable in ONE place.
+Why this file exists:
+- OpenRouter exposes an OpenAI-compatible API, so this module configures the standard
+  `openai.OpenAI` SDK with OpenRouter's base URL (`https://openrouter.ai/api/v1`).
+- Provides a singleton client via `get_llm_client()` initialized with `OPENROUTER_API_KEY`.
+- Defines `MODEL_NAME` in a single location so the LLM model can be updated across the entire
+  application without modifying individual agent nodes.
+
+Where it is used:
+- `generate_sql.py`: Calls the LLM to translate natural language questions into SQL.
+- `synthesize_response.py`: Calls the LLM to synthesize conversational answers from query result rows.
+
+Testing:
+Run directly to verify your OpenRouter API key and connectivity:
+    python llm_client.py
 """
 
 import os

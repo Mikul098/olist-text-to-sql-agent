@@ -1,7 +1,23 @@
 """
-Central place to create the SQLAlchemy engine for olist_db.
-Every other module (schema context, SQL execution node, etc.)
-should import get_engine() from here instead of building its own connection.
+db_connection.py
+
+Purpose & Use:
+Centralized database connection factory for the Olist Text-to-SQL system.
+Manages a shared, reusable SQLAlchemy Engine connected to MySQL (`olist_db`).
+
+Why this file exists:
+- Provides a singleton database engine via `get_engine()` to avoid redundant connection pools.
+- Decouples database connection configuration and credential handling from individual modules.
+- Automatically loads credentials from the local `.env` file (with URL-encoded passwords for safety).
+- Utilizes `pool_pre_ping=True` to proactively detect and recover from dropped/stale connections.
+
+Where it is used:
+- `schema_context.py`: Introspects table schemas, column types, foreign keys, and sample rows.
+- `execute_sql.py`: Executes validated SELECT queries against the live database.
+
+Testing:
+Run directly to perform a connection sanity check:
+    python db_connection.py
 """
 
 import os

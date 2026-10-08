@@ -1,21 +1,37 @@
 """
 execute_sql.py
 
-Runs a SQL query that has ALREADY passed validate_sql() against the database,
-and returns a structured result so the LangGraph node can decide what to do
-next (succeed -> synthesize_response, fail -> loop back to generate_sql).
+Purpose & Use:
+Database execution engine for validated SQL queries. Runs read-only queries against
+MySQL (`olist_db`) and returns a structured dictionary result for downstream agent nodes.
 
-This function does NOT call validate_sql() itself -- that's a deliberate
-separation of concerns. The LangGraph node calls validate_sql() first, and
-only calls this if validation passed. Keeping them separate makes each one
-easier to test on its own.
+Why this file exists:
+- Provides controlled database execution separated from SQL validation (`validate_sql.py`),
+  maintaining clean modular separation of concerns.
+- Implements runtime safety nets to protect application responsiveness and LLM context windows:
+  1. Hard row cap (`MAX_ROWS = 200`): Prevents accidental massive result sets from
+     overflowing the LLM's token context during response synthesis.
+  2. Query timeout (`QUERY_TIMEOUT_SECONDS = 15`): Enforces `MAX_EXECUTION_TIME` in MySQL
+     so accidental Cartesian products or runaway queries cannot hang the application.
+  3. Structured error handling: Catches and unpacks `SQLAlchemyError` / MySQL error messages
+     so the LangGraph workflow can feed them back to `generate_sql.py` for self-correction.
 
-Two safety nets live here specifically because this hits a real database:
-  1. A hard row cap, so a query that accidentally matches all 100k+ orders
-     doesn't blow up your context window when it gets handed to the LLM
-     for response synthesis.
-  2. A query timeout, so a slow/expensive query (e.g. an accidental cross
-     join) doesn't hang the whole Streamlit app.
+Return Shape:
+{
+    "success": bool,
+    "rows": list[dict] | None,     # List of column-value mappings (None on error)
+    "row_count": int | None,       # Total rows matched before row capping
+    "truncated": bool,             # True if matching rows exceeded MAX_ROWS
+    "columns": list[str] | None,   # List of result column names
+    "error": str | None,           # Descriptive error message on failure
+}
+
+Where it is used:
+- Called by `execute_sql_node` in `graph.py`.
+
+Testing:
+Run directly to execute sample queries against the active database:
+    python execute_sql.py
 """
 
 from sqlalchemy import text

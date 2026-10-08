@@ -1,16 +1,26 @@
 """
-Generates a compact, LLM-friendly description of the olist_db schema.
+schema_context.py
 
-Why this exists:
-Handing the LLM raw CREATE TABLE statements is fine, but SQL generation
-quality improves noticeably when the model also sees a few real sample
-rows per table -- it picks up on actual value formats (e.g. order_status
-values like 'delivered'/'shipped', category strings like 'beleza_saude',
-date formats, etc.) instead of guessing.
+Purpose & Use:
+Dynamically introspects the MySQL database (`olist_db`) and builds a rich, compact,
+LLM-friendly schema description string for prompt injection.
 
-This module is meant to be called ONCE per app session (schema doesn't
-change at runtime), and the resulting string gets cached and injected
-into the SQL-generation prompt in the LangGraph node.
+Why this file exists:
+- Instead of feeding massive raw DDL statements, this module extracts essential metadata:
+  1. Table names and ordered column lists with SQL data types.
+  2. Primary key markers (`[PK]`) and declared foreign key relationships.
+  3. Real sample data rows (default: 3 rows per table).
+- Seeing actual sample values enables the LLM to understand concrete data formats
+  (e.g., status codes like 'delivered', category strings in Portuguese, date formats)
+  greatly reducing hallucinations during SQL generation.
+
+Where it is used:
+- Called once per application session/startup (e.g., in `graph.py` or a Streamlit UI)
+  and stored in `AgentState["schema_context"]` to provide context for `generate_sql()`.
+
+Testing:
+Run directly to inspect the generated schema context output:
+    python schema_context.py
 """
 
 from sqlalchemy import inspect, text

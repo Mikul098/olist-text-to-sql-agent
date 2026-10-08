@@ -1,14 +1,28 @@
 """
 generate_sql.py
 
-The actual "Text-to-SQL" step. Takes:
-  - the user's natural language question
-  - the schema context (from schema_context.py)
-  - OPTIONALLY: the previous attempt's SQL + error message, if this is a
-    retry after validate_sql/execute_sql rejected something
+Purpose & Use:
+The core Text-to-SQL generation node. Translates user natural language questions
+into executable MySQL queries targeting `olist_db` using an LLM.
 
-...and returns a single, clean SQL string with no markdown fences,
-explanations, or commentary -- just SQL, ready to hand to validate_sql().
+What this file does:
+1. Takes the user's question and compact schema context (from `schema_context.py`).
+2. Enforces strict generation rules in the system prompt:
+   - Output ONLY a single SQL SELECT statement (no write/DDL operations).
+   - Use only tables and columns from the provided schema context.
+   - Include sensible LIMIT clauses unless aggregating.
+   - Correctly join product tables to English category translations.
+3. Cleans LLM output by removing markdown code fences (` ```sql ... ``` `).
+4. Supports Self-Correction:
+   - If a previous query failed validation or execution, feeds the failed SQL and
+     error message back into the prompt so the model can fix the specific issue.
+
+Where it is used:
+- Called by `generate_sql_node` in `graph.py` on the initial attempt and on any retry loop.
+
+Testing:
+Run directly to test SQL generation against live schema context:
+    python generate_sql.py
 """
 
 import re

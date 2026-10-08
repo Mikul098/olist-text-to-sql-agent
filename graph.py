@@ -1,19 +1,37 @@
 """
 graph.py
 
-This is where every piece built so far gets wired together into one
-LangGraph state machine.
+Purpose & Use:
+Central orchestrator and workflow graph for the Olist Text-to-SQL agent.
+Builds and compiles the LangGraph state machine that connects all individual nodes,
+conditional routers, and self-correction loops into a unified execution pipeline.
 
-Flow:
-  generate_sql -> validate_sql -> (if invalid) loop back to generate_sql,
-  with the error fed back in, up to max_retries
-                              -> (if valid) execute_sql -> (if DB error) loop
-  back to generate_sql, same retry logic
-                                                        -> (if success)
-  synthesize_response -> END
+Execution Flow & Architecture:
+  1. `generate_sql`:
+       Translates user query into SQL using LLM and database schema context.
+  2. `validate_sql`:
+       Runs static safety checks (single SELECT, forbidden keywords, no file ops).
+       - If INVALID and retry_count < max_retries: loops back to `generate_sql` with validation error.
+       - If INVALID and retries exhausted: routes to `give_up`.
+       - If VALID: routes to `execute_sql`.
+  3. `execute_sql`:
+       Executes query against MySQL with row caps and query timeouts.
+       - If DB ERROR and retry_count < max_retries: loops back to `generate_sql` with database error.
+       - If DB ERROR and retries exhausted: routes to `give_up`.
+       - If SUCCESS: routes to `synthesize_response`.
+  4. `synthesize_response`:
+       Synthesizes plain-English response from execution rows and finishes at `END`.
+  5. `give_up`:
+       Formulates an honest failure explanation when retry attempts are exhausted and finishes at `END`.
 
-  If retries are exhausted at either point -> give_up -> END, with an
-  honest "couldn't answer this" message instead of a fake/broken answer.
+Key Functions:
+- `build_graph()`: Constructs and compiles the LangGraph `StateGraph`.
+- `run_agent(question, schema_context, max_retries)`: High-level invocation function
+  used by frontend interfaces (e.g. Streamlit app) or scripts to run the agent.
+
+Testing:
+Run directly to execute an end-to-end question answering pipeline against the live database:
+    python graph.py
 """
 
 from langgraph.graph import StateGraph, END

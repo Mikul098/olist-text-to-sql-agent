@@ -1,7 +1,33 @@
+"""
+py_script.py
+
+Purpose & Use:
+Data ingestion and ETL script responsible for loading raw Olist Brazilian e-commerce
+CSV datasets from the `data/` directory into the MySQL database (`olist_db`).
+
+What this file does:
+1. Connects to the local MySQL instance via SQLAlchemy using PyMySQL.
+2. Loads dataset CSV files from the `data/` directory into their respective MySQL tables in a Foreign-Key-safe order:
+   - Independent parent tables: `customers`, `product_category_name_translation`, `products`
+   - Dependent parent table: `orders` (depends on `customers`)
+   - Dependent child tables: `order_items`, `order_payments`, `order_reviews` (depend on `orders` & `products`)
+3. Streams data in manageable batches (chunksize = 10,000 rows) to prevent high memory consumption.
+4. Sanitizes Pandas `NaN` values to `None` (SQL NULL) so typed MySQL columns (INT, DATETIME)
+   insert cleanly without conversion errors.
+
+When to use:
+Run once during initial database setup to populate the MySQL tables with the raw dataset records:
+    python py_script.py
+"""
+
+from pathlib import Path
 import pandas as pd
 from sqlalchemy import create_engine
 import urllib.parse
 import numpy as np
+
+# Directory containing the CSV datasets
+DATA_DIR = Path(__file__).resolve().parent / "data"
 
 # Safely encode your password just in case it has numbers/symbols that conflict
 password = urllib.parse.quote_plus("Ankita@14")
@@ -32,9 +58,10 @@ datasets = {
 chunksize = 10000
 
 for file_name, table_name in datasets.items():
+    file_path = DATA_DIR / file_name
     print(f"Loading {file_name} into {table_name} table...")
 
-    for chunk in pd.read_csv(file_name, chunksize=chunksize):
+    for chunk in pd.read_csv(file_path, chunksize=chunksize):
         # Replace NaN with None so MySQL INT/DATETIME columns don't choke
         # on pandas' float NaN representation of missing values.
         chunk = chunk.replace({np.nan: None})

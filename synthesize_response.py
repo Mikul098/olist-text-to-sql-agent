@@ -1,12 +1,30 @@
 """
 synthesize_response.py
 
-The last node in the happy path. Takes the user's original question plus
-the rows execute_sql() returned, and asks the LLM to phrase a plain-English
-answer -- instead of just dumping a raw table at the user.
+Purpose & Use:
+Response synthesis node. Converts raw tabular SQL query results into clear,
+plain-English, conversational answers for the user.
 
-Also handles the "gave up after max retries" case with a clear, honest
-message instead of pretending everything worked.
+What this file does:
+1. `synthesize_response()`:
+   - Takes the user's natural language question and the execution result dictionary
+     produced by `execute_sql.py`.
+   - Prompts the LLM (temperature=0.3) to answer concisely using ONLY the provided data,
+     avoiding technical SQL/database jargon and never inventing values.
+   - Transparently indicates if the returned rows were truncated by the row cap.
+   - Handles empty query results cleanly without confusing the user.
+2. `build_failure_message()`:
+   - Formulates a helpful, transparent explanation when the agent exhausts its retry
+     budget (`max_retries`) without a successful query, outlining the last error and
+     suggesting how the user can rephrase.
+
+Where it is used:
+- Invoked by `synthesize_response_node` (success path) and `give_up_node` (exhausted retries)
+  in `graph.py`.
+
+Testing:
+Run directly to test response synthesis against mock query rows:
+    python synthesize_response.py
 """
 
 from llm_client import get_llm_client, MODEL_NAME

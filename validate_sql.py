@@ -1,25 +1,35 @@
 """
 validate_sql.py
 
-The safety gate between the LLM's generated SQL and the actual database.
+Purpose & Use:
+Security guardrail and static SQL validation gatekeeper. Inspects LLM-generated SQL
+queries to ensure they are safe, read-only SELECT queries before database execution.
 
-This function does NOT trust the LLM. It assumes the LLM could, at some point,
-hallucinate a DROP/DELETE/UPDATE statement (this happens more than people
-expect), and its job is to catch that BEFORE execute_sql ever runs it.
+Why this file exists:
+LLMs cannot be implicitly trusted and can hallucinate destructive queries, permit SQL injection,
+or generate multi-statement queries. This module intercepts and rejects unsafe patterns
+deterministically BEFORE `execute_sql.py` ever touches the database.
 
-Rules enforced:
-  1. Must be exactly ONE SQL statement (blocks "SELECT ...; DROP TABLE ...;" tricks)
-  2. That one statement must be a SELECT
-  3. No destructive/dangerous keywords anywhere in the query, even inside
-     subqueries or comments (defense in depth, in case rule 1/2 get bypassed
-     by unusual formatting)
-  4. No file-system access attempts (INTO OUTFILE / INTO DUMPFILE / LOAD_FILE) -
-     a MySQL-specific way to read or write files on the server via SQL
+Validation Rules Enforced:
+1. Non-empty query check: Rejects blank or whitespace-only strings.
+2. Single-statement rule: Disallows multiple stacked queries (blocks "SELECT ...; DROP TABLE ...;").
+3. Read-only enforcement: Uses `sqlparse` to verify the statement type is strictly `SELECT`.
+4. Forbidden keyword blacklist: Blocks destructive/administrative operations (DROP, DELETE,
+   UPDATE, ALTER, TRUNCATE, INSERT, CREATE, GRANT, REVOKE, EXEC, etc.) using whole-word regex.
+5. Filesystem defense: Blocks MySQL-specific file-access vectors (`INTO OUTFILE`, `INTO DUMPFILE`, `LOAD_FILE`).
 
-Returns a tuple: (is_valid: bool, message: str)
-  - If valid: (True, "OK")
-  - If invalid: (False, "<human-readable reason>")  <- this message is also
-    useful to feed back to the LLM in the self-correction retry loop
+Output Contract:
+Returns `(is_valid: bool, message: str)`:
+- `(True, "OK")` when the query passes all security checks.
+- `(False, "<reason>")` when rejected, providing clear feedback that can be fed back
+  to the LLM for self-correction.
+
+Where it is used:
+- Called by `validate_sql_node` in `graph.py` immediately after SQL generation.
+
+Testing:
+Run directly to execute self-contained unit tests without requiring a database or API key:
+    python validate_sql.py
 """
 
 import re
