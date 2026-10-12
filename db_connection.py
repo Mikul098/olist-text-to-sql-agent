@@ -54,6 +54,14 @@ def get_engine() -> Engine:
 
 if __name__ == "__main__":
     # Quick sanity check: run `python db_connection.py` to confirm the connection works.
-    engine = get_engine()
-    with engine.connect() as conn:
-        print("Connected successfully to:", engine.url.database)
+    print(f"Testing MySQL connection to {os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_NAME', 'olist_db')}...")
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            print("Connected successfully to:", engine.url.database)
+    except Exception as e:
+        print(f"\n[ERROR] Connection failed: {e}")
+        print("\nTroubleshooting:")
+        print("1. Ensure MySQL service is running locally on port 3306.")
+        print("2. Check credentials (DB_USER, DB_PASSWORD, DB_NAME) in your .env file.")
+        print("3. Ensure database 'olist_db' is created (run 'python py_script.py').")

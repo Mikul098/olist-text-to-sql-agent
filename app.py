@@ -12,12 +12,15 @@ st.set_page_config(page_title="Olist Text-to-SQL Agent", page_icon="🛒", layou
 
 
 @st.cache_resource(show_spinner="Reading database schema...")
-def load_schema() -> str:
-    """Built once per app session; the schema never changes at runtime."""
-    return build_schema_context()
+def load_schema() -> tuple[str | None, str | None]:
+    """Built once per app session; returns (schema_context, error_message)."""
+    try:
+        return build_schema_context(), None
+    except Exception as e:
+        return None, str(e)
 
 
-schema_context = load_schema()
+schema_context, db_error = load_schema()
 
 # ---- Sidebar -------------------------------------------------------------
 with st.sidebar:
@@ -39,6 +42,15 @@ with st.sidebar:
     if st.button("Clear chat", use_container_width=True):
         st.session_state["messages"] = []
         st.rerun()
+
+# ---- Check Database Status ----------------------------------------------
+if not schema_context:
+    st.error(f"⚠️ Could not connect to MySQL database: {db_error}")
+    st.info("Please ensure MySQL is running on localhost:3306 and run `python py_script.py` to import the datasets.")
+    if st.button("🔄 Retry Connection"):
+        st.cache_resource.clear()
+        st.rerun()
+    st.stop()
 
 # ---- Chat history --------------------------------------------------------
 if "messages" not in st.session_state:

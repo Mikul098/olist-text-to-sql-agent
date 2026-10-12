@@ -56,19 +56,22 @@ def _get_foreign_keys(inspector, table_name: str) -> list[str]:
 
 def _get_sample_rows(engine: Engine, table_name: str, limit: int) -> str:
     """Fetches a few sample rows and formats them as a readable block."""
-    with engine.connect() as conn:
-        result = conn.execute(text(f"SELECT * FROM {table_name} LIMIT {limit}"))
-        rows = result.fetchall()
-        columns = result.keys()
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text(f"SELECT * FROM `{table_name}` LIMIT {limit}"))
+            rows = result.fetchall()
+            columns = result.keys()
 
-    if not rows:
-        return "  (no sample rows available)"
+        if not rows:
+            return "  (no sample rows available)"
 
-    lines = []
-    for row in rows:
-        row_dict = dict(zip(columns, row))
-        lines.append(f"  {row_dict}")
-    return "\n".join(lines)
+        lines = []
+        for row in rows:
+            row_dict = {k: (str(v) if v is not None else None) for k, v in zip(columns, row)}
+            lines.append(f"  {row_dict}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"  (sample rows unavailable: {e})"
 
 
 def build_schema_context(engine: Engine | None = None) -> str:
@@ -86,6 +89,11 @@ def build_schema_context(engine: Engine | None = None) -> str:
 
     inspector = inspect(engine)
     all_tables = inspector.get_table_names()
+
+    if not all_tables:
+        raise RuntimeError(
+            "No tables found in database. Please run 'python py_script.py' to populate the tables from the CSVs."
+        )
 
     sections = []
     all_fk_lines = []

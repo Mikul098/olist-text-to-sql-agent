@@ -40,7 +40,18 @@ port = os.getenv("DB_PORT", "3306")
 db_name = os.getenv("DB_NAME", "olist_db")
 password = urllib.parse.quote_plus(raw_password)
 
-# 1. Connect to the local MySQL server
+# 1. Ensure the database exists on the MySQL server
+try:
+    server_engine = create_engine(f'mysql+pymysql://{user}:{password}@{host}:{port}/')
+    with server_engine.connect() as conn:
+        conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{db_name}` CHARACTER SET utf8mb4;"))
+        conn.commit()
+except Exception as e:
+    print(f"Error connecting to MySQL server at {host}:{port}: {e}")
+    print("Please ensure your MySQL service is started and credentials in .env are correct.")
+    raise SystemExit(1)
+
+# Connect to the target database
 engine = create_engine(f'mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}')
 
 # 2. Define files and target tables, IN FK-SAFE ORDER
@@ -55,18 +66,20 @@ datasets = {
 }
 
 # 3. Import data in manageable chunks
+from sqlalchemy import inspect
+inspector = inspect(engine)
 chunksize = 10000
 
 for file_name, table_name in datasets.items():
     file_path = DATA_DIR / file_name
 
-    # Check if table is already populated to avoid Primary Key duplicate errors
-    with engine.connect() as conn:
-        existing_rows = conn.execute(text(f"SELECT COUNT(1) FROM {table_name}")).scalar()
-    
-    if existing_rows > 0:
-        print(f"Table '{table_name}' already contains {existing_rows:,} rows. Skipping.")
-        continue
+    # Check if table exists and is already populated to avoid Primary Key duplicate errors
+    if inspector.has_table(table_name):
+        with engine.connect() as conn:
+            existing_rows = conn.execute(text(f"SELECT COUNT(1) FROM `{table_name}`")).scalar()
+        if existing_rows and existing_rows > 0:
+            print(f"Table '{table_name}' already contains {existing_rows:,} rows. Skipping.")
+            continue
 
     print(f"Loading {file_name} into {table_name} table...")
 

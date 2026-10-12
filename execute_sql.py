@@ -60,8 +60,11 @@ def execute_sql(sql: str) -> dict:
 
     try:
         with engine.connect() as conn:
-            # MySQL-side timeout so a runaway query can't hang the app.
-            conn.execute(text(f"SET SESSION MAX_EXECUTION_TIME={QUERY_TIMEOUT_SECONDS * 1000}"))
+            # MySQL-side timeout so a runaway query can't hang the app (if supported by server).
+            try:
+                conn.execute(text(f"SET SESSION MAX_EXECUTION_TIME={QUERY_TIMEOUT_SECONDS * 1000}"))
+            except Exception:
+                pass
 
             result = conn.execute(text(sql))
             columns = list(result.keys())

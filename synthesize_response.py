@@ -27,6 +27,7 @@ Run directly to test response synthesis against mock query rows:
     python synthesize_response.py
 """
 
+import re
 from llm_client import get_llm_client, MODEL_NAME
 
 SYSTEM_PROMPT = """You are a helpful assistant answering questions about a Brazilian e-commerce dataset.
@@ -71,7 +72,11 @@ def synthesize_response(question: str, execution_result: dict) -> str:
         temperature=0.3,  # a little more natural phrasing is fine here, unlike SQL generation
     )
 
-    return response.choices[0].message.content.strip()
+    raw_text = response.choices[0].message.content.strip()
+    # Strip any stray moderation prefix or thinking tokens from free models
+    cleaned = re.sub(r"^User Safety:\s*\w+\s*", "", raw_text, flags=re.IGNORECASE)
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL)
+    return cleaned.strip()
 
 
 def build_failure_message(question: str, last_error: str) -> str:

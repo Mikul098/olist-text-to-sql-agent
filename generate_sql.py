@@ -47,6 +47,9 @@ SCHEMA:
 def _strip_markdown_fences(text: str) -> str:
     """Removes ```sql ... ``` or ``` ... ``` wrapping if the model adds it despite instructions."""
     text = text.strip()
+    match = re.search(r"```(?:sql)?\s*(.*?)\s*```", text, flags=re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip()
     text = re.sub(r"^```sql\s*", "", text, flags=re.IGNORECASE)
     text = re.sub(r"^```\s*", "", text)
     text = re.sub(r"\s*```$", "", text)
