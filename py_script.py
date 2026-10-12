@@ -22,28 +22,28 @@ Run once during initial database setup to populate the MySQL tables with the raw
 
 from pathlib import Path
 import pandas as pd
-from sqlalchemy import create_engine
+import os
 import urllib.parse
 import numpy as np
+from dotenv import load_dotenv
+from sqlalchemy import create_engine, text
+
+load_dotenv()
 
 # Directory containing the CSV datasets
 DATA_DIR = Path(__file__).resolve().parent / "data"
 
-# Safely encode your password just in case it has numbers/symbols that conflict
-password = urllib.parse.quote_plus("Ankita@14")
+user = os.getenv("DB_USER", "root")
+raw_password = os.getenv("DB_PASSWORD", "")
+host = os.getenv("DB_HOST", "localhost")
+port = os.getenv("DB_PORT", "3306")
+db_name = os.getenv("DB_NAME", "olist_db")
+password = urllib.parse.quote_plus(raw_password)
 
 # 1. Connect to the local MySQL server
-engine = create_engine(f'mysql+pymysql://root:{password}@localhost:3306/olist_db')
+engine = create_engine(f'mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}')
 
 # 2. Define files and target tables, IN FK-SAFE ORDER
-# Rules:
-#   - customers has no dependencies -> load first
-#   - product_category_name_translation has no dependencies
-#   - products has no dependencies (category name is just a string column, not an FK here)
-#   - orders depends on customers -> must come after customers
-#   - order_items depends on orders AND products -> must come after both
-#   - order_payments depends on orders
-#   - order_reviews depends on orders
 datasets = {
     'olist_customers_dataset.csv': 'customers',
     'product_category_name_translation.csv': 'product_category_name_translation',
@@ -59,6 +59,15 @@ chunksize = 10000
 
 for file_name, table_name in datasets.items():
     file_path = DATA_DIR / file_name
+
+    # Check if table is already populated to avoid Primary Key duplicate errors
+    with engine.connect() as conn:
+        existing_rows = conn.execute(text(f"SELECT COUNT(1) FROM {table_name}")).scalar()
+    
+    if existing_rows > 0:
+        print(f"Table '{table_name}' already contains {existing_rows:,} rows. Skipping.")
+        continue
+
     print(f"Loading {file_name} into {table_name} table...")
 
     for chunk in pd.read_csv(file_path, chunksize=chunksize):
@@ -70,4 +79,4 @@ for file_name, table_name in datasets.items():
 
     print(f"Successfully loaded all data into {table_name}.\n")
 
-print("All tables loaded successfully.")
+print("\nAll tables verified and ready.")
